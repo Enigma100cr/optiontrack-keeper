@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,12 @@ import {
   BrainCircuit, 
   Ban, 
   Info,
-  HelpCircle 
+  HelpCircle,
+  ChartCandlestick,
+  Coins,
+  BookOpen,
+  ChartLine,
+  Scale
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -33,41 +37,45 @@ export const TradeEntryForm = () => {
     e.preventDefault();
     
     if (dailyLimitReached) {
-      toast.error("Daily trading limit reached. Take a break and review your trades.");
-      return;
-    }
-
-    if (tradesCount >= 5) {
-      setIsOvertrading(true);
-      setDailyLimitReached(true);
-      toast.warning("Trading limit reached! System activated kill switch.");
+      toast.error("Daily trading limit reached. Review your trades before continuing.");
       return;
     }
 
     const formElement = e.target as HTMLFormElement;
     const formData = new FormData(formElement);
-    const targetPrice = Number(formData.get("target"));
+    
+    if (!formData.get("marketCondition") || !formData.get("setup")) {
+      toast.error("Please provide market conditions and setup details");
+      return;
+    }
+
+    if (formData.get("psychology") === "REVENGE" || formData.get("psychology") === "FOMO") {
+      toast.error("Trading not recommended in current psychological state");
+      return;
+    }
+
+    const entry = Number(formData.get("entry"));
     const stopLoss = Number(formData.get("stoploss"));
+    const target = Number(formData.get("target"));
     
-    if (stopLoss === 0) {
-      toast.error("Stop loss cannot be zero!");
+    if (!entry || !stopLoss || !target) {
+      toast.error("Please fill in all price levels");
       return;
     }
 
-    const riskReward = (targetPrice - Number(formData.get("entry"))) / 
-                      (Number(formData.get("entry")) - stopLoss);
-    
-    if (riskReward < 1.5) {
-      toast.warning("Risk-Reward ratio is below 1.5:1 - Consider reviewing this trade");
+    const riskPerTrade = (entry - stopLoss) / entry * 100;
+    const rewardPotential = (target - entry) / entry * 100;
+    const riskRewardRatio = rewardPotential / riskPerTrade;
+
+    if (riskRewardRatio < 1.5) {
+      toast.warning("Risk-Reward ratio below 1.5. Consider revising your levels.");
       return;
     }
 
-    // Calculate position size based on risk
-    const riskAmount = initialCapital * (riskPerTrade / 100);
-    const positionSize = Math.floor(riskAmount / (Number(formData.get("entry")) - stopLoss));
+    const positionSize = Math.floor((initialCapital * (riskPerTrade / 100)) / (entry - stopLoss));
     
-    toast.success(`Recommended position size: ${positionSize} units based on ${riskPerTrade}% risk`);
-    setTradesCount((prev) => prev + 1);
+    toast.success(`Trade logged successfully! Position size: ${positionSize} units`);
+    setTradesCount(prev => prev + 1);
   };
 
   const handleJournal = () => {
@@ -89,9 +97,12 @@ export const TradeEntryForm = () => {
 
   return (
     <Card className="p-6 glass-panel animate-fade-up">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">New Trade Entry</h3>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold flex items-center gap-2">
+            <ChartCandlestick className="w-5 h-5" />
+            Trade Entry Journal
+          </h3>
           <div className="flex gap-2">
             {isOvertrading && (
               <div className="flex items-center text-warning gap-2">
@@ -108,10 +119,58 @@ export const TradeEntryForm = () => {
           </div>
         </div>
 
-        <div className="space-y-4 p-4 bg-muted/50 rounded-lg mb-6">
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
           <div className="flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" />
-            <h4 className="font-medium">Position Sizing Calculator</h4>
+            <ChartLine className="w-5 h-5 text-primary" />
+            <h4 className="font-medium">Market Analysis</h4>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="marketCondition">Market Condition</Label>
+                {renderTooltip("Overall market sentiment and conditions")}
+              </div>
+              <select
+                id="marketCondition"
+                name="marketCondition"
+                className="w-full p-2 rounded-md border border-input bg-background"
+                required
+              >
+                <option value="">Select market condition</option>
+                <option value="BULLISH">Bullish</option>
+                <option value="BEARISH">Bearish</option>
+                <option value="SIDEWAYS">Range-bound</option>
+                <option value="VOLATILE">Highly Volatile</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="setup">Trade Setup</Label>
+                {renderTooltip("Specific pattern or setup being traded")}
+              </div>
+              <select
+                id="setup"
+                name="setup"
+                className="w-full p-2 rounded-md border border-input bg-background"
+                required
+              >
+                <option value="">Select setup type</option>
+                <option value="BREAKOUT">Breakout</option>
+                <option value="REVERSAL">Reversal</option>
+                <option value="TREND">Trend Following</option>
+                <option value="SUPPORT_RESISTANCE">Support/Resistance</option>
+                <option value="PATTERN">Chart Pattern</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Coins className="w-5 h-5 text-primary" />
+            <h4 className="font-medium">Position Sizing & Risk Calculator</h4>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -149,132 +208,196 @@ export const TradeEntryForm = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="date">Trade Date</Label>
-              {renderTooltip("Select the date of trade execution")}
-            </div>
-            <Input type="date" id="date" name="date" required />
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Scale className="w-5 h-5 text-primary" />
+            <h4 className="font-medium">Trade Details</h4>
           </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="date">Trade Date</Label>
+                {renderTooltip("Select the date of trade execution")}
+              </div>
+              <Input type="date" id="date" name="date" required />
+            </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="symbol">Stock Symbol</Label>
-              {renderTooltip("Enter the stock/option symbol (e.g., RELIANCE, NIFTY)")}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="symbol">Stock Symbol</Label>
+                {renderTooltip("Enter the stock/option symbol (e.g., RELIANCE, NIFTY)")}
+              </div>
+              <Input id="symbol" name="symbol" placeholder="e.g., RELIANCE" required />
             </div>
-            <Input id="symbol" name="symbol" placeholder="e.g., RELIANCE" required />
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="type">Trade Type</Label>
-              {renderTooltip("Select the type of trade you're executing")}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="type">Trade Type</Label>
+                {renderTooltip("Select the type of trade you're executing")}
+              </div>
+              <select
+                id="type"
+                name="type"
+                className="w-full p-2 rounded-md border border-input bg-background"
+                required
+              >
+                <option value="CALL">Call Option</option>
+                <option value="PUT">Put Option</option>
+                <option value="SWING">Swing Trade</option>
+              </select>
             </div>
-            <select
-              id="type"
-              name="type"
-              className="w-full p-2 rounded-md border border-input bg-background"
-              required
-            >
-              <option value="CALL">Call Option</option>
-              <option value="PUT">Put Option</option>
-              <option value="SWING">Swing Trade</option>
-            </select>
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="entry">Entry Price</Label>
-              {renderTooltip("Your planned entry price for the trade")}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="entry">Entry Price</Label>
+                {renderTooltip("Your planned entry price for the trade")}
+              </div>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input id="entry" name="entry" type="number" className="pl-9" required />
+              </div>
             </div>
-            <div className="relative">
-              <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input id="entry" name="entry" type="number" className="pl-9" required />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="target">Target Price</Label>
-              {renderTooltip("Your profit target price (minimum 1.5:1 reward-to-risk recommended)")}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="target">Target Price</Label>
+                {renderTooltip("Your profit target price (minimum 1.5:1 reward-to-risk recommended)")}
+              </div>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input id="target" name="target" type="number" className="pl-9" required />
+              </div>
             </div>
-            <div className="relative">
-              <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input id="target" name="target" type="number" className="pl-9" required />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="stoploss">Stop Loss</Label>
-              {renderTooltip("Your maximum loss point. This is crucial for position sizing!")}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="stoploss">Stop Loss</Label>
+                {renderTooltip("Your maximum loss point. This is crucial for position sizing!")}
+              </div>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input id="stoploss" name="stoploss" type="number" className="pl-9" required />
+              </div>
             </div>
-            <div className="relative">
-              <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input id="stoploss" name="stoploss" type="number" className="pl-9" required />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="charges">Charges & Taxes</Label>
-              {renderTooltip("Include brokerage, STT, and other applicable charges")}
-            </div>
-            <div className="relative">
-              <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input id="charges" name="charges" type="number" className="pl-9" required />
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="charges">Charges & Taxes</Label>
+                {renderTooltip("Include brokerage, STT, and other applicable charges")}
+              </div>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input id="charges" name="charges" type="number" className="pl-9" required />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center">
-            <Label htmlFor="psychology">Trading Psychology Check</Label>
-            {renderTooltip("Honest assessment of your current mental state is crucial for successful trading")}
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <BrainCircuit className="w-5 h-5 text-primary" />
+            <h4 className="font-medium">Trading Psychology</h4>
           </div>
-          <select
-            id="psychology"
-            name="psychology"
-            className="w-full p-2 rounded-md border border-input bg-background"
-            required
-          >
-            <option value="">Select your current state</option>
-            <option value="CALM">Calm and Focused</option>
-            <option value="FOMO">Feeling FOMO</option>
-            <option value="REVENGE">Revenge Trading Urge</option>
-            <option value="CONFIDENT">Confident</option>
-            <option value="TIRED">Tired/Unfocused</option>
-            <option value="GREEDY">Feeling Greedy</option>
-          </select>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="preTradeEmotion">Pre-Trade Emotion</Label>
+                {renderTooltip("How do you feel before taking this trade?")}
+              </div>
+              <select
+                id="preTradeEmotion"
+                name="preTradeEmotion"
+                className="w-full p-2 rounded-md border border-input bg-background"
+                required
+              >
+                <option value="">Select emotion</option>
+                <option value="CONFIDENT">Confident & Calm</option>
+                <option value="FEARFUL">Fearful</option>
+                <option value="EXCITED">Excited</option>
+                <option value="FOMO">FOMO</option>
+                <option value="REVENGE">Revenge Trading Urge</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="planAdherence">Trading Plan Adherence</Label>
+                {renderTooltip("Are you following your trading plan?")}
+              </div>
+              <select
+                id="planAdherence"
+                name="planAdherence"
+                className="w-full p-2 rounded-md border border-input bg-background"
+                required
+              >
+                <option value="">Select adherence</option>
+                <option value="FULL">Following Plan 100%</option>
+                <option value="PARTIAL">Partial Deviation</option>
+                <option value="NONE">Not Following Plan</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        {isJournaling && (
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <Label htmlFor="journal">Trade Journal Entry</Label>
-              {renderTooltip("Document your trade setup, analysis, and current market conditions")}
-            </div>
-            <Textarea
-              id="journal"
-              name="journal"
-              placeholder="Document your trade setup, reasons for entry, and current market conditions..."
-              className="h-32"
-            />
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-primary" />
+            <h4 className="font-medium">Trade Journal</h4>
           </div>
-        )}
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="setupNotes">Setup Analysis</Label>
+                {renderTooltip("Describe your analysis and reasons for taking this trade")}
+              </div>
+              <Textarea
+                id="setupNotes"
+                name="setupNotes"
+                placeholder="Describe your analysis, key levels, and reasons for taking this trade..."
+                className="h-24"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <Label htmlFor="riskManagement">Risk Management Notes</Label>
+                {renderTooltip("Document your risk management decisions")}
+              </div>
+              <Textarea
+                id="riskManagement"
+                name="riskManagement"
+                placeholder="Document your position sizing, stop loss placement reasoning..."
+                className="h-24"
+                required
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="flex gap-4">
           <Button
             type="button"
             variant="outline"
             className="flex-1"
-            onClick={handleJournal}
+            onClick={() => {
+              if (!isJournaling) {
+                setIsJournaling(true);
+                toast.info("Good practice! Always journal before trading.");
+              }
+            }}
           >
             <BrainCircuit className="w-4 h-4 mr-2" />
             Journal First
           </Button>
-          <Button type="submit" className="flex-1" disabled={dailyLimitReached}>
+          <Button 
+            type="submit" 
+            className="flex-1" 
+            disabled={dailyLimitReached || !isJournaling}
+          >
             Log Trade
           </Button>
         </div>
