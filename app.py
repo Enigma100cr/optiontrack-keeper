@@ -1,4 +1,3 @@
-
 # ... keep existing code (imports)
 import streamlit as st
 import pandas as pd
@@ -138,6 +137,11 @@ with tabs[0]:
         exit_price = st.number_input("Exit Price (₹)", value=0.0, step=0.1)
         target_price = st.number_input("Target Price (₹)", value=0.0, step=0.1)
         stop_loss = st.number_input("Stop Loss (₹)", value=0.0, step=0.1)
+        
+        # Calculate position size based on risk parameters
+        position_size = calculate_position_size(initial_capital, risk_percent, entry_price, stop_loss) if entry_price and stop_loss else 0
+        st.metric("Position Size", position_size)
+        
         status = st.selectbox("Trade Status", ["Open", "Closed"])
         
         # Psychology Check
