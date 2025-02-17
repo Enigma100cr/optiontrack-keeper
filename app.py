@@ -1,3 +1,4 @@
+
 # ... keep existing code (imports)
 import streamlit as st
 import pandas as pd
@@ -63,7 +64,38 @@ def calculate_charges(position_size, entry_price, exit_price, trade_type):
         'total_charges': round(total_charges, 2)
     }
 
-# ... keep existing code (Header and Sidebar sections)
+def get_image_base64(image_file):
+    if image_file is not None:
+        bytes_data = image_file.getvalue()
+        return base64.b64encode(bytes_data).decode()
+    return None
+
+# Header
+st.title("🚀 Advanced Options Trading Journal")
+st.markdown("Track your trades, analyze performance, and improve your psychology")
+
+# Sidebar for analytics
+with st.sidebar:
+    st.header("📊 Trading Statistics")
+    if not st.session_state.trades.empty:
+        completed_trades = st.session_state.trades[st.session_state.trades['status'] == 'Closed']
+        if not completed_trades.empty:
+            total_trades = len(completed_trades)
+            winning_trades = len(completed_trades[completed_trades['net_pnl'] > 0])
+            win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
+            total_profit = completed_trades['net_pnl'].sum()
+            
+            st.metric("Total Trades", total_trades)
+            st.metric("Win Rate", f"{win_rate:.2f}%")
+            st.metric("Total P&L", f"₹{total_profit:,.2f}")
+            
+            # Show equity curve
+            cumulative_pnl = completed_trades['net_pnl'].cumsum()
+            fig = px.line(cumulative_pnl, title='Equity Curve')
+            st.plotly_chart(fig)
+
+# Main content
+tabs = st.tabs(["Trade Entry", "Trade Journal", "Analytics"])
 
 with tabs[0]:
     st.header("📝 Trade Entry Form")
@@ -71,7 +103,21 @@ with tabs[0]:
     col1, col2 = st.columns(2)
     
     with col1:
-        # ... keep existing code (Market Analysis and Position Sizing)
+        # Market Analysis
+        st.subheader("Market Analysis")
+        market_condition = st.selectbox(
+            "Market Condition",
+            ["Bullish", "Bearish", "Sideways", "Volatile"]
+        )
+        setup_type = st.selectbox(
+            "Setup Type",
+            ["Breakout", "Reversal", "Trend Following", "Support/Resistance", "Pattern"]
+        )
+        
+        # Position Sizing
+        st.subheader("Position Sizing")
+        initial_capital = st.number_input("Initial Capital (₹)", value=100000.0, step=1000.0)
+        risk_percent = st.number_input("Risk Per Trade (%)", value=1.0, max_value=5.0, step=0.1)
         
         # Add screenshot upload section
         st.subheader("📸 Trade Screenshots")
@@ -84,7 +130,22 @@ with tabs[0]:
             st.image(exit_screenshot, caption="Exit Setup", use_column_width=True)
 
     with col2:
-        # ... keep existing code (existing Trade Details)
+        # Trade Details
+        st.subheader("Trade Details")
+        symbol = st.text_input("Stock Symbol", placeholder="e.g., RELIANCE")
+        trade_type = st.selectbox("Trade Type", ["Call Option", "Put Option", "Swing Trade"])
+        entry_price = st.number_input("Entry Price (₹)", value=0.0, step=0.1)
+        exit_price = st.number_input("Exit Price (₹)", value=0.0, step=0.1)
+        target_price = st.number_input("Target Price (₹)", value=0.0, step=0.1)
+        stop_loss = st.number_input("Stop Loss (₹)", value=0.0, step=0.1)
+        status = st.selectbox("Trade Status", ["Open", "Closed"])
+        
+        # Psychology Check
+        st.subheader("Psychology Check")
+        emotion = st.selectbox(
+            "Current Emotional State",
+            ["Confident & Calm", "Fearful", "Excited", "FOMO", "Revenge Trading Urge"]
+        )
         
         # Show charges calculation for closed trades
         if status == "Closed" and entry_price and exit_price and position_size:
@@ -101,7 +162,9 @@ with tabs[0]:
                 st.metric("Stamp Duty", f"₹{charges['stamp_duty']:,.2f}")
                 st.metric("Total Charges", f"₹{charges['total_charges']:,.2f}")
 
-    # ... keep existing code (Trade Notes section)
+    # Trade Notes
+    st.subheader("Trade Notes")
+    setup_notes = st.text_area("Setup Analysis", height=100)
 
     # Submit button
     if st.button("Log Trade"):
@@ -217,7 +280,34 @@ with tabs[2]:
                 cost_percentage = (completed_trades['total_charges'].sum() / total_turnover * 100) if total_turnover > 0 else 0
                 st.metric("Cost %", f"{cost_percentage:.2f}%")
                 st.metric("Net P&L", f"₹{completed_trades['net_pnl'].sum():,.2f}")
+            
+            # Setup Performance
+            st.subheader("Setup Performance")
+            setup_performance = completed_trades.groupby('setup_type')['net_pnl'].agg(['mean', 'count', 'sum']).round(2)
+            st.dataframe(setup_performance)
+            
+            # Monthly Performance
+            st.subheader("Monthly Performance")
+            completed_trades['month'] = pd.to_datetime(completed_trades['date']).dt.strftime('%Y-%m')
+            monthly_pnl = completed_trades.groupby('month')['net_pnl'].sum()
+            fig_monthly = px.bar(monthly_pnl, title='Monthly P&L')
+            st.plotly_chart(fig_monthly)
+            
+            # Win Rate by Setup
+            st.subheader("Win Rate by Setup")
+            setup_winrate = completed_trades.groupby('setup_type').apply(
+                lambda x: (x['net_pnl'] > 0).mean() * 100
+            ).round(2)
+            fig_winrate = px.bar(setup_winrate, title='Win Rate by Setup (%)')
+            st.plotly_chart(fig_winrate)
+            
+            # Trade Distribution
+            st.subheader("Trade Type Distribution")
+            fig_dist = px.pie(completed_trades, names='trade_type', title='Trade Type Distribution')
+            st.plotly_chart(fig_dist)
+    else:
+        st.info("Start logging trades to see analytics!")
 
-            # ... keep existing code (other analytics sections)
-
-# ... keep existing code (Footer section)
+# Footer
+st.markdown("---")
+st.markdown("Built with ❤️ for traders who take journaling seriously")
