@@ -1,5 +1,12 @@
-
-# ... keep existing code (imports and initial setup)
+# ... keep existing code (imports)
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
+from io import BytesIO
+import base64
 
 # Set page config
 st.set_page_config(page_title="Options Trading Journal", layout="wide")
@@ -11,7 +18,7 @@ if 'trades' not in st.session_state:
         'stop_loss', 'target', 'position_size', 'brokerage', 'stt',
         'transaction_charges', 'gst', 'stamp_duty', 'total_charges',
         'net_pnl', 'setup_type', 'market_condition', 'psychology', 
-        'notes', 'status'
+        'notes', 'status', 'entry_screenshot', 'exit_screenshot'
     ])
 
 def calculate_position_size(capital, risk_percent, entry, stop_loss):
@@ -61,7 +68,20 @@ def calculate_charges(position_size, entry_price, exit_price, trade_type):
 with tabs[0]:
     st.header("📝 Trade Entry Form")
     
-    # ... keep existing code (col1 section)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # ... keep existing code (Market Analysis and Position Sizing)
+        
+        # Add screenshot upload section
+        st.subheader("📸 Trade Screenshots")
+        entry_screenshot = st.file_uploader("Entry Screenshot", type=['png', 'jpg', 'jpeg'])
+        exit_screenshot = st.file_uploader("Exit Screenshot", type=['png', 'jpg', 'jpeg'])
+        
+        if entry_screenshot:
+            st.image(entry_screenshot, caption="Entry Setup", use_column_width=True)
+        if exit_screenshot:
+            st.image(exit_screenshot, caption="Exit Setup", use_column_width=True)
 
     with col2:
         # ... keep existing code (existing Trade Details)
@@ -95,7 +115,11 @@ with tabs[0]:
             }
             net_pnl = pnl - charges['total_charges'] if status == "Closed" else 0
             
-            # Add trade to dataframe
+            # Convert screenshots to base64
+            entry_image = get_image_base64(entry_screenshot) if entry_screenshot else None
+            exit_image = get_image_base64(exit_screenshot) if exit_screenshot else None
+            
+            # Add trade to dataframe with screenshots
             new_trade = {
                 'date': datetime.now(),
                 'symbol': symbol,
@@ -117,34 +141,43 @@ with tabs[0]:
                 'market_condition': market_condition,
                 'psychology': emotion,
                 'notes': setup_notes,
-                'status': status
+                'status': status,
+                'entry_screenshot': entry_image,
+                'exit_screenshot': exit_image
             }
             st.session_state.trades = pd.concat([st.session_state.trades, pd.DataFrame([new_trade])], ignore_index=True)
-            st.success("Trade logged successfully!")
+            st.success("Trade logged successfully with screenshots!")
 
 with tabs[1]:
     st.header("📖 Trade Journal")
     if not st.session_state.trades.empty:
-        # Add column configuration to show/hide specific columns
-        column_config = {
-            'date': 'Date',
-            'symbol': 'Symbol',
-            'trade_type': 'Type',
-            'entry_price': 'Entry',
-            'exit_price': 'Exit',
-            'position_size': 'Size',
-            'total_charges': 'Charges',
-            'pnl': 'Gross P&L',
-            'net_pnl': 'Net P&L',
-            'status': 'Status'
-        }
-        st.dataframe(
-            st.session_state.trades,
-            column_config=column_config,
-            hide_index=True
-        )
-    else:
-        st.info("No trades recorded yet. Start by logging your first trade!")
+        # Display trades in an expandable format
+        for index, trade in st.session_state.trades.iterrows():
+            with st.expander(f"{trade['symbol']} - {trade['date'].strftime('%Y-%m-%d %H:%M')}"):
+                trade_col1, trade_col2 = st.columns(2)
+                
+                with trade_col1:
+                    st.write("**Trade Details**")
+                    st.write(f"Symbol: {trade['symbol']}")
+                    st.write(f"Type: {trade['trade_type']}")
+                    st.write(f"Entry: ₹{trade['entry_price']:,.2f}")
+                    st.write(f"Exit: ₹{trade['exit_price']:,.2f}" if trade['exit_price'] else "Exit: Not closed")
+                    st.write(f"Net P&L: ₹{trade['net_pnl']:,.2f}" if trade['status'] == 'Closed' else "P&L: Trade open")
+                    
+                    if trade['entry_screenshot']:
+                        st.write("**Entry Screenshot**")
+                        st.image(base64.b64decode(trade['entry_screenshot']), use_column_width=True)
+                
+                with trade_col2:
+                    st.write("**Trade Analysis**")
+                    st.write(f"Setup: {trade['setup_type']}")
+                    st.write(f"Market: {trade['market_condition']}")
+                    st.write(f"Psychology: {trade['psychology']}")
+                    st.write(f"Notes: {trade['notes']}")
+                    
+                    if trade['exit_screenshot'] and trade['status'] == 'Closed':
+                        st.write("**Exit Screenshot**")
+                        st.image(base64.b64decode(trade['exit_screenshot']), use_column_width=True)
 
 with tabs[2]:
     st.header("📊 Analytics Dashboard")
